@@ -5,21 +5,155 @@ output:
     keep_md: true
 ---
 
+## Import all libraries to be used
+```{r, echo=TRUE}
+require(ggplot2)
+require(lubridate)
+require(gridExtra)
+```
 
 ## Loading and preprocessing the data
 
+To load the data we just need to extract it from the zip file:
+```{r echo=TRUE}
+unzip("activity.zip")
+```
+
+Then load the csv as follows:
+```{r echo=TRUE}
+df <- read.csv("activity.csv")
+```
+
+Then, we can take an initial look at the data:
+```{r echo=TRUE}
+head(df, 10)
+summary(df)
+```
 
 
 ## What is mean total number of steps taken per day?
+First, let's extract the daily data into a different data frame:
 
+```{r echo=TRUE}
+spd <- data.frame(tapply(df$steps, df$date, FUN = sum))
+names(spd) <- c("steps")
+head(spd)
+summary(spd)
+```
 
+Now let's print a histogram of the number of steps per day:
+```{r echo=TRUE}
+ggplot(spd, aes(x=steps)) + geom_histogram(binwidth = 1000) + geom_vline(aes(xintercept=mean(steps, na.rm = TRUE)), color="maroon") + ggtitle("Steps per day frequency") + xlab("Number of steps") + ylab("Frequency")
+```
+
+As you can see the mean and median are as follows:
+```{r echo=TRUE}
+with(spd, mean(steps, na.rm = TRUE))
+with(spd, median(steps, na.rm = TRUE))
+```
 
 ## What is the average daily activity pattern?
+Let's again, prepare a data frame to explore the values:
 
+```{r echo=TRUE}
+spi <- data.frame(tapply(df$steps, df$interval, FUN = mean, na.rm=TRUE))
+names(spi) <- c("avg")
+head(spi)
+tail(spi)
+summary(spi)
+```
 
+Now, let's plot the average steps taken each interval accross the dates:
+```{r echo=TRUE}
+ggplot(spi, aes(as.numeric(row.names(spi)), avg)) + geom_point() + geom_line() + ggtitle("Average steps at interval") + xlab("Interval") + ylab("Avg. Steps")
+```
+
+We can see that the 5 minute interval in which this subject has the maximum number of steps is:
+```{r echo=TRUE}
+spi[spi$avg == max(spi$avg),]
+```
 
 ## Imputing missing values
+However, the original dataset had lots of NA's that might be changing the result of the analysis. Let's investigate and fix this issue:
+```{r echo=TRUE}
+length(df$steps)
+sum(is.na(df))
+sum(is.na(df))/length(df$steps)*100
+```
+
+About 13% of the values are missing. Let's replace them by the interval's average:
+```{r echo=TRUE}
+df$steps2 <- df$steps
+df[is.na(df$steps), "steps"] <- spi[,"avg"]
+```
+
+Let's create a new dataset with the cleaned values and return the original to the initial state:
+```{r echo=TRUE}
+df2 <- df
+df$steps <- df$steps2
+df$steps2 <- NULL
+df2$steps2 <- NULL
+head(df)
+head(df2)
+summary(df)
+summary(df2)
+any(is.na(df$steps))
+any(is.na(df2$steps))
+```
 
 
+Now that we took care of missing values, let's calculate the mean and median once again and see the effect of our changes:
+```{r echo=TRUE}
+spd2 <- data.frame(tapply(df2$steps, df2$date, FUN = sum))
+names(spd2) <- c("steps")
+head(spd2)
+summary(spd2)
+```
+
+Now let's print a histogram of the number of steps per day:
+```{r echo=TRUE}
+ggplot(spd2, aes(x=steps)) + geom_histogram(binwidth = 1000) + geom_vline(aes(xintercept=mean(steps, na.rm = TRUE)), color="maroon") + ggtitle("Steps per day frequency") + xlab("Number of steps") + ylab("Frequency")
+```
+
+As you can see the mean and median are as follows:
+```{r echo=TRUE}
+with(spd2, mean(steps, na.rm = TRUE))
+with(spd2, median(steps, na.rm = TRUE))
+```
+
+Surprisingly, the median and mean now are equal. This is the effect of changing the NA's values.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+First, let's add a factor variable representing the weekend and weekdays days:
+```{r echo=TRUE}
+df2$weekday <- as.factor(ifelse(wday(as.Date(df2$date)) == 1 | wday(as.Date(df2$date)) == 7, "weekend", "weekday"))
+summary(df2)
+```
+
+Let's extract the values per weekday:
+```{r echo=TRUE}
+wdd <- subset(df2, df2$weekday == "weekend")
+wyd <- subset(df2, df2$weekday == "weekday")
+wdspi <- data.frame(tapply(wdd$steps, wdd$interval, FUN = mean, na.rm=TRUE))
+wyspi <- data.frame(tapply(wyd$steps, wyd$interval, FUN = mean, na.rm=TRUE))
+names(wdspi) <- c("avg")
+names(wyspi) <- c("avg")
+head(wdspi)
+head(wyspi)
+tail(wdspi)
+tail(wyspi)
+summary(wdspi)
+summary(wyspi)
+```
+
+Now, let's compare the interval activity per weekday:
+```{r echo=TRUE}
+wdplot <- ggplot(wdspi, aes(as.numeric(row.names(wdspi)), avg)) + geom_point() + geom_line() + ggtitle("Weekend Activity") + xlab("Interval") + ylab("Avg. Steps") 
+wyplot <- ggplot(wyspi, aes(as.numeric(row.names(wyspi)), avg)) + geom_point() + geom_line() + ggtitle("Weekday Activity") + xlab("Interval") + ylab("Avg. Steps")
+grid.arrange(wdplot, wyplot, nrow=2)
+```
+
+Interestingly, the average number of steps in weekdays is greater than in weekends, however, the weekend max is greater than the weekday max.
+ 
+ 
+ 
